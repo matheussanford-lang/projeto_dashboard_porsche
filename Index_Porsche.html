@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>Porsche | Business Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --porsche-red: #d5001c;
+            --porsche-black: #191f22;
+            --porsche-dark: #000000;
+            --porsche-gray: #f5f5f5;
+            --porsche-border: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #ffffff;
+            color: var(--porsche-black);
+            overflow: hidden;
+        }
+
+        /* Sidebar Elegante */
+        .sidebar {
+            width: 320px;
+            background-color: var(--porsche-gray);
+            border-right: 1px solid var(--porsche-border);
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .brand {
+            font-size: 24px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 40px;
+            color: var(--porsche-dark);
+            border-bottom: 2px solid var(--porsche-red);
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+
+        .filter-group {
+            margin-bottom: 25px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 0;
+            background-color: #fff;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        select:focus {
+            border-color: var(--porsche-red);
+        }
+
+        .price-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            background-color: #ffffff;
+        }
+
+        .header {
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 300;
+            margin: 0;
+            color: var(--porsche-dark);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .chart-card {
+            background: #fff;
+            border: 1px solid var(--porsche-border);
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+        }
+
+        .chart-card.full-width {
+            grid-column: span 2;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            color: var(--porsche-dark);
+        }
+
+        canvas {
+            max-height: 350px;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #ccc; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--porsche-red); }
+    </style>
+</head>
+<body>
+
+    <!-- Filtros -->
+    <div class="sidebar">
+        <div class="brand">Porsche</div>
+        
+        <div class="filter-group">
+            <label for="modelFilter">Modelo</label>
+            <select id="modelFilter" onchange="updateDashboard()">
+                <option value="All">Todos os Modelos</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="stateFilter">Estado</label>
+            <select id="stateFilter" onchange="updateDashboard()">
+                <option value="All">Todos os Estados</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="payMethodFilter">Método de Pagamento</label>
+            <select id="payMethodFilter" onchange="updateDashboard()">
+                <option value="All">Todos os Métodos</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="priceFilter">Preço Máximo de Venda</label>
+            <input type="range" id="priceFilter" min="50000" max="300000" step="5000" value="300000" oninput="updatePriceLabel(); updateDashboard()">
+            <div class="price-labels">
+                <span>$50,000</span>
+                <span id="priceValueLabel">$300,000</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="header">
+            <h1>Sales Intelligence Dashboard</h1>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Gráfico 1: Modelos por Estado -->
+            <div class="chart-card full-width">
+                <div class="chart-title">Principais Modelos Vendidos por Estado</div>
+                <canvas id="modelsByStateChart"></canvas>
+            </div>
+
+            <!-- Gráfico 2: Métodos de Pagamento -->
+            <div class="chart-card">
+                <div class="chart-title">Métodos de Pagamento por Estado</div>
+                <canvas id="payMethodChart"></canvas>
+            </div>
+
+            <!-- Gráfico 3: Valor Total por Veículo -->
+            <div class="chart-card">
+                <div class="chart-title">Receita Total por Modelo ($)</div>
+                <canvas id="revenueByModelChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dataset Injetado
+        const rawData = [
+            {"PorscheModelSanitized": "718 Cayman", "StateSanitized": "MA", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 79500.0},
+            {"PorscheModelSanitized": "911 Turbo S", "StateSanitized": "WA", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 235000.0},
+            {"PorscheModelSanitized": "Cayenne Coupe", "StateSanitized": "TX", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 112750.0},
+            {"PorscheModelSanitized": "Macan S", "StateSanitized": "CO", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 68900.0},
+            {"PorscheModelSanitized": "Taycan 4S", "StateSanitized": "CA", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 121000.0},
+            {"PorscheModelSanitized": "Panamera 4", "StateSanitized": "FL", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 104500.0},
+            {"PorscheModelSanitized": "911 Carrera S", "StateSanitized": "NY", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 96300.0},
+            {"PorscheModelSanitized": "Cayenne E-Hybrid", "StateSanitized": "CA", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 89750.0},
+            {"PorscheModelSanitized": "718 Boxster", "StateSanitized": "IL", "PayMethodSanitized": "Debit Card", "SalesPriceSanitized": 73500.0},
+            {"PorscheModelSanitized": "Macan GTS", "StateSanitized": "AZ", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 95000.0},
+            {"PorscheModelSanitized": "Taycan Turbo", "StateSanitized": "TX", "PayMethodSanitized": "ACH Payment", "SalesPriceSanitized": 153200.5},
+            {"PorscheModelSanitized": "911 GT3", "StateSanitized": "NV", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 241000.0},
+            {"PorscheModelSanitized": "Panamera Turbo S", "StateSanitized": "CA", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 132000.0},
+            {"PorscheModelSanitized": "Cayenne Turbo GT", "StateSanitized": "TX", "PayMethodSanitized": "Crypto Payment", "SalesPriceSanitized": 188000.0},
+            {"PorscheModelSanitized": "911 Carrera Cabriolet", "StateSanitized": "GA", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 127800.0},
+            {"PorscheModelSanitized": "Macan", "StateSanitized": "FL", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 58900.0},
+            {"PorscheModelSanitized": "718 Spyder RS", "StateSanitized": "OR", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 164000.0},
+            {"PorscheModelSanitized": "Taycan Cross Turismo", "StateSanitized": "NC", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 118500.0},
+            {"PorscheModelSanitized": "Cayenne S", "StateSanitized": "TN", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 91300.0},
+            {"PorscheModelSanitized": "911 Targa 4S", "StateSanitized": "MN", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 158750.0},
+            {"PorscheModelSanitized": "Panamera", "StateSanitized": "PA", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 72000.0},
+            {"PorscheModelSanitized": "Macan Electric", "StateSanitized": "TX", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 86500.0},
+            {"PorscheModelSanitized": "911 Dakar", "StateSanitized": "UT", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 270000.0},
+            {"PorscheModelSanitized": "Taycan GTS", "StateSanitized": "NC", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 139000.0},
+            {"PorscheModelSanitized": "Cayenne", "StateSanitized": "MI", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 76800.0},
+            {"PorscheModelSanitized": "718 Cayman GT4 RS", "StateSanitized": "OH", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 173600.0},
+            {"PorscheModelSanitized": "911 Carrera GTS", "StateSanitized": "IN", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 119900.0},
+            {"PorscheModelSanitized": "Panamera 4 E-Hybrid", "StateSanitized": "TX", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 109250.0},
+            {"PorscheModelSanitized": "Macan T", "StateSanitized": "FL", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 82000.0},
+            {"PorscheModelSanitized": "Taycan Turbo S", "StateSanitized": "CA", "PayMethodSanitized": "Crypto Payment", "SalesPriceSanitized": 214000.0},
+            {"PorscheModelSanitized": "911 Carrera", "StateSanitized": "FL", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 124500.0},
+            {"PorscheModelSanitized": "Cayenne S", "StateSanitized": "CA", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 98200.0},
+            {"PorscheModelSanitized": "Macan", "StateSanitized": "OH", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 67500.0},
+            {"PorscheModelSanitized": "Taycan", "StateSanitized": "WI", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 116900.0},
+            {"PorscheModelSanitized": "Panamera 4S", "StateSanitized": "MO", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 112000.0},
+            {"PorscheModelSanitized": "718 Boxster", "StateSanitized": "NE", "PayMethodSanitized": "Debit Card", "SalesPriceSanitized": 74000.0},
+            {"PorscheModelSanitized": "911 Turbo", "StateSanitized": "NM", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 198300.0},
+            {"PorscheModelSanitized": "Cayenne Coupe", "StateSanitized": "AZ", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 103750.0},
+            {"PorscheModelSanitized": "Macan GTS", "StateSanitized": "CA", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 93600.0},
+            {"PorscheModelSanitized": "Taycan 4S", "StateSanitized": "VA", "PayMethodSanitized": "ACH Payment", "SalesPriceSanitized": 129000.0},
+            {"PorscheModelSanitized": "Panamera Turbo", "StateSanitized": "CO", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 136000.0},
+            {"PorscheModelSanitized": "911 GT3 RS", "StateSanitized": "TX", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 286500.0},
+            {"PorscheModelSanitized": "Cayenne E-Hybrid", "StateSanitized": "CA", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 92800.0},
+            {"PorscheModelSanitized": "Macan T", "StateSanitized": "AZ", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 72400.0},
+            {"PorscheModelSanitized": "Taycan Turbo", "StateSanitized": "GA", "PayMethodSanitized": "Crypto Payment", "SalesPriceSanitized": 158500.0},
+            {"PorscheModelSanitized": "718 Cayman", "StateSanitized": "CA", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 69900.0},
+            {"PorscheModelSanitized": "911 Targa 4", "StateSanitized": "CA", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 141250.0},
+            {"PorscheModelSanitized": "Panamera", "StateSanitized": "OK", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 71500.0},
+            {"PorscheModelSanitized": "Cayenne Turbo", "StateSanitized": "KS", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 146800.0},
+            {"PorscheModelSanitized": "Macan Electric", "StateSanitized": "LA", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 89700.0},
+            {"PorscheModelSanitized": "911 Carrera S", "StateSanitized": "HI", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 104600.0},
+            {"PorscheModelSanitized": "Taycan GTS", "StateSanitized": "CA", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 142000.0},
+            {"PorscheModelSanitized": "Cayenne", "StateSanitized": "NV", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 78400.0},
+            {"PorscheModelSanitized": "718 Spyder RS", "StateSanitized": "KY", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 169000.0},
+            {"PorscheModelSanitized": "911 Dakar", "StateSanitized": "CA", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 268900.0},
+            {"PorscheModelSanitized": "Panamera 4", "StateSanitized": "TX", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 101300.0},
+            {"PorscheModelSanitized": "Macan S", "StateSanitized": "MO", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 66750.0},
+            {"PorscheModelSanitized": "Taycan Cross Turismo", "StateSanitized": "PA", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 127900.0},
+            {"PorscheModelSanitized": "Cayenne Turbo GT", "StateSanitized": "OH", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 200000.0},
+            {"PorscheModelSanitized": "911 Carrera Cabriolet", "StateSanitized": "AK", "PayMethodSanitized": "Crypto Payment", "SalesPriceSanitized": 132000.0},
+            {"PorscheModelSanitized": "718 Cayman GT4 RS", "StateSanitized": "TX", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 176400.0},
+            {"PorscheModelSanitized": "Panamera 4 E-Hybrid", "StateSanitized": "NJ", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 108500.0},
+            {"PorscheModelSanitized": "Macan", "StateSanitized": "NC", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 59000.0},
+            {"PorscheModelSanitized": "Taycan Turbo S", "StateSanitized": "NE", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 218000.0},
+            {"PorscheModelSanitized": "Cayenne S", "StateSanitized": "NJ", "PayMethodSanitized": "Debit Card", "SalesPriceSanitized": 99950.0},
+            {"PorscheModelSanitized": "911 Carrera GTS", "StateSanitized": "AZ", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 121750.0},
+            {"PorscheModelSanitized": "718 Boxster GTS", "StateSanitized": "NV", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 91500.0},
+            {"PorscheModelSanitized": "Panamera Turbo S", "StateSanitized": "NY", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 134000.0},
+            {"PorscheModelSanitized": "Macan GTS", "StateSanitized": "NC", "PayMethodSanitized": "ACH Payment", "SalesPriceSanitized": 96800.0},
+            {"PorscheModelSanitized": "Taycan 4S", "StateSanitized": "TX", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 131600.0},
+            {"PorscheModelSanitized": "Cayenne E-Hybrid", "StateSanitized": "WI", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 94300.0},
+            {"PorscheModelSanitized": "911 Turbo S", "StateSanitized": "TX", "PayMethodSanitized": "Crypto Payment", "SalesPriceSanitized": 242000.0},
+            {"PorscheModelSanitized": "718 Cayman S", "StateSanitized": "OH", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 82750.0},
+            {"PorscheModelSanitized": "Macan Electric", "StateSanitized": "CA", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 91300.0},
+            {"PorscheModelSanitized": "Panamera", "StateSanitized": "TX", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 79900.0},
+            {"PorscheModelSanitized": "Cayenne Coupe", "StateSanitized": "TX", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 111000.0},
+            {"PorscheModelSanitized": "911 Targa 4S", "StateSanitized": "VA", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 156500.0},
+            {"PorscheModelSanitized": "Taycan", "StateSanitized": "AZ", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 119900.0},
+            {"PorscheModelSanitized": "Macan T", "StateSanitized": "VA", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 73200.0},
+            {"PorscheModelSanitized": "911 GT3", "StateSanitized": "ID", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 224000.0},
+            {"PorscheModelSanitized": "911 Carrera", "StateSanitized": "FL", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 126900.0},
+            {"PorscheModelSanitized": "Cayenne", "StateSanitized": "CA", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 84500.0},
+            {"PorscheModelSanitized": "Macan S", "StateSanitized": "FL", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 69800.0},
+            {"PorscheModelSanitized": "Taycan 4S", "StateSanitized": "CO", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 132700.0},
+            {"PorscheModelSanitized": "Panamera", "StateSanitized": "TX", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 81000.0},
+            {"PorscheModelSanitized": "718 Cayman", "StateSanitized": "WA", "PayMethodSanitized": "Debit Card", "SalesPriceSanitized": 78900.0},
+            {"PorscheModelSanitized": "911 Turbo S", "StateSanitized": "MA", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 249300.0},
+            {"PorscheModelSanitized": "Cayenne Coupe", "StateSanitized": "AZ", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 108750.0},
+            {"PorscheModelSanitized": "Macan Electric", "StateSanitized": "IL", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 92600.0},
+            {"PorscheModelSanitized": "Taycan Turbo", "StateSanitized": "TX", "PayMethodSanitized": "ACH Payment", "SalesPriceSanitized": 164000.0},
+            {"PorscheModelSanitized": "Panamera 4S", "StateSanitized": "CA", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 119000.0},
+            {"PorscheModelSanitized": "911 GT3", "StateSanitized": "NV", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 232500.0},
+            {"PorscheModelSanitized": "Cayenne E-Hybrid", "StateSanitized": "NC", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 96800.0},
+            {"PorscheModelSanitized": "Macan T", "StateSanitized": "AZ", "PayMethodSanitized": "Cash", "SalesPriceSanitized": 74400.0},
+            {"PorscheModelSanitized": "Taycan GTS", "StateSanitized": "GA", "PayMethodSanitized": "Crypto Payment", "SalesPriceSanitized": 148500.0},
+            {"PorscheModelSanitized": "718 Boxster", "StateSanitized": "CA", "PayMethodSanitized": "Bank Transfer", "SalesPriceSanitized": 71900.0},
+            {"PorscheModelSanitized": "911 Targa 4", "StateSanitized": "CA", "PayMethodSanitized": "Financing", "SalesPriceSanitized": 143250.0},
+            {"PorscheModelSanitized": "Panamera Turbo", "StateSanitized": "OK", "PayMethodSanitized": "Wire Transfer", "SalesPriceSanitized": 137500.0},
+            {"PorscheModelSanitized": "Cayenne Turbo GT", "StateSanitized": "KS", "PayMethodSanitized": "Credit Card", "SalesPriceSanitized": 204800.0},
+            {"PorscheModelSanitized": "911 Dakar", "StateSanitized": "LA", "PayMethodSanitized": "Lease", "SalesPriceSanitized": 271700.0}
+        ];
+
+        // Chart instances
+        let chartModelsByState, chartPayMethod, chartRevenue;
+
+        // Paleta Porsche Red to Gray scale
+        const colorPalette = [
+            '#d5001c', '#a60015', '#191f22', '#4b5558', '#8a9497', '#c0c5c6', '#e0e0e0'
+        ];
+
+        function populateSelect(id, key) {
+            const select = document.getElementById(id);
+            const uniqueValues = [...new Set(rawData.map(item => item[key]))].sort();
+            uniqueValues.forEach(val => {
+                const option = document.createElement("option");
+                option.value = val;
+                option.text = val;
+                select.appendChild(option);
+            });
+        }
+
+        function initFilters() {
+            populateSelect("modelFilter", "PorscheModelSanitized");
+            populateSelect("stateFilter", "StateSanitized");
+            populateSelect("payMethodFilter", "PayMethodSanitized");
+        }
+
+        function updatePriceLabel() {
+            const price = document.getElementById("priceFilter").value;
+            document.getElementById("priceValueLabel").textContent = "$" + parseInt(price).toLocaleString();
+        }
+
+        function getFilteredData() {
+            const mFilter = document.getElementById("modelFilter").value;
+            const sFilter = document.getElementById("stateFilter").value;
+            const pFilter = document.getElementById("payMethodFilter").value;
+            const maxPrice = parseFloat(document.getElementById("priceFilter").value);
+
+            return rawData.filter(item => {
+                return (mFilter === "All" || item.PorscheModelSanitized === mFilter) &&
+                       (sFilter === "All" || item.StateSanitized === sFilter) &&
+                       (pFilter === "All" || item.PayMethodSanitized === pFilter) &&
+                       (item.SalesPriceSanitized <= maxPrice);
+            });
+        }
+
+        function renderModelsByStateChart(data) {
+            const ctx = document.getElementById('modelsByStateChart').getContext('2d');
+            if (chartModelsByState) chartModelsByState.destroy();
+
+            // Aggregate: Count models per state
+            const stateModelCount = {};
+            data.forEach(d => {
+                if(!stateModelCount[d.StateSanitized]) stateModelCount[d.StateSanitized] = {};
+                stateModelCount[d.StateSanitized][d.PorscheModelSanitized] = (stateModelCount[d.StateSanitized][d.PorscheModelSanitized] || 0) + 1;
+            });
+
+            const states = Object.keys(stateModelCount).sort();
+            const allModels = [...new Set(data.map(d => d.PorscheModelSanitized))];
+
+            const datasets = allModels.map((model, i) => {
+                return {
+                    label: model,
+                    data: states.map(state => stateModelCount[state][model] || 0),
+                    backgroundColor: colorPalette[i % colorPalette.length],
+                };
+            });
+
+            chartModelsByState = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: states, datasets: datasets },
+                options: {
+                    responsive: true,
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: {stepSize: 1} } },
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: {family: "'Segoe UI', sans-serif"} } } }
+                }
+            });
+        }
+
+        function renderPayMethodChart(data) {
+            const ctx = document.getElementById('payMethodChart').getContext('2d');
+            if (chartPayMethod) chartPayMethod.destroy();
+
+            const payMethodCount = {};
+            data.forEach(d => {
+                payMethodCount[d.PayMethodSanitized] = (payMethodCount[d.PayMethodSanitized] || 0) + 1;
+            });
+
+            const methods = Object.keys(payMethodCount);
+            const counts = Object.values(payMethodCount);
+
+            chartPayMethod = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: methods,
+                    datasets: [{
+                        data: counts,
+                        backgroundColor: colorPalette.slice(0, methods.length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: {family: "'Segoe UI', sans-serif"} } }
+                    }
+                }
+            });
+        }
+
+        function renderRevenueChart(data) {
+            const ctx = document.getElementById('revenueByModelChart').getContext('2d');
+            if (chartRevenue) chartRevenue.destroy();
+
+            const revenueByModel = {};
+            data.forEach(d => {
+                revenueByModel[d.PorscheModelSanitized] = (revenueByModel[d.PorscheModelSanitized] || 0) + d.SalesPriceSanitized;
+            });
+
+            // Sort by revenue
+            const sortedModels = Object.keys(revenueByModel).sort((a, b) => revenueByModel[b] - revenueByModel[a]).slice(0, 10);
+            const revenues = sortedModels.map(m => revenueByModel[m]);
+
+            chartRevenue = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedModels,
+                    datasets: [{
+                        label: 'Receita Total ($)',
+                        data: revenues,
+                        backgroundColor: '#191f22',
+                        hoverBackgroundColor: '#d5001c'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    scales: { x: { beginAtZero: true } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function updateDashboard() {
+            const filteredData = getFilteredData();
+            renderModelsByStateChart(filteredData);
+            renderPayMethodChart(filteredData);
+            renderRevenueChart(filteredData);
+        }
+
+        // Init
+        initFilters();
+        updateDashboard();
+    </script>
+</body>
+</html>
